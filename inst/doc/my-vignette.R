@@ -98,7 +98,7 @@ city200 %>%
 
 ## ----echo=FALSE----------------------------------------------------------
 rownum <- seq(1:15)
-RI <- t(data.frame(c(0,0,0.52,0.89,1.11,1.25,1.35,1.40,1.45,1.49, 1.52, 1.54, 1.56, 1.58, 1.59)))
+RI <- t(data.frame(c(0.0000000, 0.0000000, 0.5251686, 0.8836651, 1.1081014, 1.2492774, 1.3415514, 1.4048466, 1.4507197, 1.4857266, 1.5141022,1.5356638, 1.5545925, 1.5703498, 1.5839958)))
 rownames(RI) <- "RI"
 colnames(RI) <- 1:15
 RI%>% kable()
@@ -110,14 +110,20 @@ weight <- c(5,-3,2,-5,
             -7)
 sample_mat <- ahp.mat(t(weight), atts, negconvert = TRUE)
 
-cr_std <- ahp.cr(sample_mat, atts)
-cr_std
+(cr_std <- ahp.cr(sample_mat, atts))
 
 ## ------------------------------------------------------------------------
 cr <- city200 %>%
   ahp.mat(atts, negconvert = T) %>% 
   ahp.cr(atts)
 table(cr <= 0.1)
+
+## ------------------------------------------------------------------------
+## Generate a random index with 1000 simulations, 5 dimensions and seed 30000 for reproducibility (seed = 42 by default).
+(RI <- ahp.ri(nsims = 1000, dim = 5, seed = 30000))
+
+## Use this RI to calculate the consistency ratio instead of the default one.
+ahp.cr(sample_mat, atts, RI)
 
 ## ----fig.cap="\\label{fig:figs}Individual priorities with respect to goal", fig.height=4, fig.width=7----
 thres <- 0.1
@@ -379,6 +385,59 @@ head(canned$indpref)
 
 ## ------------------------------------------------------------------------
 canned$aggpref
+
+## ------------------------------------------------------------------------
+library(randomNames)
+
+edl <- c("No High School", "High School", "Undergraduate", "Postgraduate")
+
+edunames <- tibble(edu = factor(rep(edl,50)),
+                  names = randomNames(200, which.names = "first"),
+                  catowner = c(rep(TRUE,100), rep(FALSE,100)))
+
+citynames <- cbind(edunames, city200)
+head(citynames)
+
+## ---- error = TRUE-------------------------------------------------------
+named <- ahp(df = citynames, 
+              atts = c('cult', 'fam', 'house', 'jobs', 'trans'), 
+              negconvert = TRUE, 
+              reciprocal = TRUE,
+              method = 'arithmetic', 
+              aggmethod = "arithmetic", 
+              qt = 0.2,
+             censorcr = 0.1,
+             agg = FALSE, 
+             ID = c("edu", "names")
+             )
+
+head(named)
+
+## ------------------------------------------------------------------------
+columns <- c("cult_fam", "cult_house", "cult_jobs", "cult_trans",
+           "fam_house", "fam_jobs", "fam_trans",
+           "house_jobs", "house_trans",
+           "jobs_trans")
+
+named <- ahp(df = citynames, 
+             atts = c('cult', 'fam', 'house', 'jobs', 'trans'), 
+             negconvert = TRUE, 
+             reciprocal = TRUE,
+             method = 'arithmetic', 
+             aggmethod = "arithmetic",
+             qt = 0.2,
+             censorcr = 0.1,
+             agg = FALSE, 
+             ID = c("edu", "names"),
+             col = columns
+             )
+
+head(named)
+
+## ------------------------------------------------------------------------
+named %>%
+  group_by(edu) %>%
+  dplyr::summarize(Mean = mean(cult, na.rm=TRUE))
 
 ## ------------------------------------------------------------------------
 ## Defining attributes

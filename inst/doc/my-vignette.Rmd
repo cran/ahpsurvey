@@ -1,13 +1,15 @@
 ---
 title: 'Analytic Hierarchy Process for Survey Data in `R`'
-subtitle: 'Vignettes for the `ahpsurvey` package (ver 0.3.0)'
+subtitle: 'Vignettes for the `ahpsurvey` package (ver 0.4.0)'
 author: 
 - name: Frankie Cho
   affiliation: Department of Geography, The University of Hong Kong, Pokfulam Road, Hong Kong
   email: htcho@connect.hku.hk
 date: "`r format(Sys.time(), '%d %B %Y')`"
-output:
+output: 
   rmarkdown::html_vignette
+  #pdf_document:
+  #  toc: true
 header-includes: \usepackage{amsmath}
 email: htcho@connect.hku.hk
 bibliography: REFERENCES_vig.bib
@@ -245,12 +247,12 @@ The consistency indices and consistency ratio of a given choice is defined by th
 
 $$CR = \bigg(\frac{\lambda_{max}-n}{n-1}\bigg)\bigg(\frac{1}{RI}\bigg)$$
 
-Where $\lambda_{max}$ is the maximum eigenvalue of the pairwise comparison vector and $n$ is the number of attributes. The $RI$ when five attributes are present is 1.11. 
+Where $\lambda_{max}$ is the maximum eigenvalue of the pairwise comparison vector and $n$ is the number of attributes. The $RI$ when five attributes are present is 1.11. See the documentation for `ahp.ri` to generate your own RI based on a specific number of dimensions and random seed.
 
-The RI was derived from @Saaty2007fuzzy, as follows:
+The RI below was generated from `ahp.ri` with 500000 simulations (which takes some time), as follows:
 ```{r echo=FALSE}
 rownum <- seq(1:15)
-RI <- t(data.frame(c(0,0,0.52,0.89,1.11,1.25,1.35,1.40,1.45,1.49, 1.52, 1.54, 1.56, 1.58, 1.59)))
+RI <- t(data.frame(c(0.0000000, 0.0000000, 0.5251686, 0.8836651, 1.1081014, 1.2492774, 1.3415514, 1.4048466, 1.4507197, 1.4857266, 1.5141022,1.5356638, 1.5545925, 1.5703498, 1.5839958)))
 rownames(RI) <- "RI"
 colnames(RI) <- 1:15
 RI%>% kable()
@@ -266,8 +268,7 @@ weight <- c(5,-3,2,-5,
             -7)
 sample_mat <- ahp.mat(t(weight), atts, negconvert = TRUE)
 
-cr_std <- ahp.cr(sample_mat, atts)
-cr_std
+(cr_std <- ahp.cr(sample_mat, atts))
 ```
 
 The `ahp.cr` function returns a vector of $CR$ that can be merged to other dataframes as a measure of the individuals' consistency.
@@ -278,6 +279,18 @@ cr <- city200 %>%
   ahp.cr(atts)
 table(cr <= 0.1)
 ```
+
+You may also specify your own random index generated with `ahp.ri` to be used with `ahp.cr`, as follows:
+
+```{r}
+## Generate a random index with 1000 simulations, 5 dimensions and seed 30000 for reproducibility (seed = 42 by default).
+(RI <- ahp.ri(nsims = 1000, dim = 5, seed = 30000))
+
+## Use this RI to calculate the consistency ratio instead of the default one.
+ahp.cr(sample_mat, atts, RI)
+```
+
+The processing time of `ahp.ri` increases exponentially as `nsims` increase, and unfortunately I haven't written it to optimise for speed. Generally I wouldn't go beyond 6 digits of `nsims` unless I have too much time lying around.
 
 ## Visualising individual priorities and consistency ratios
 
@@ -666,13 +679,78 @@ You can also see clearly the individual priorities calculated using the arithmet
 canned$aggpref
 ```
 
-You can also quickly censor inconsistent observations and estimate the aggregated preference weight of the population, and its standard deviation. The unique command here in this canned routine is `censorcr`, where you may specify the consistency ratio censoring threshold, which allows you to remove observations a higher consistency ratio than you specified. Usually, researchers censor observations with a CR higher than 0.1. But sometimes it is different depending on your discipline. Other arguments will be subsequently introduced by the stepwise functions.
+You can also quickly censor inconsistent observations and estimate the aggregated preference weight of the population, and its standard deviation. The unique command here in this canned routine is `censorcr`, where you may specify the consistency ratio censoring threshold, which allows you to remove observations a higher consistency ratio than you specified. Usually, researchers censor observations with a CR higher than 0.1. But sometimes it is different depending on your discipline. Note that specifying `qt` only affects `aggpref` calculation, and does not censor the observations in `$indpref`.
 
-Note: specifying `qt` only affects `aggpref` calculation, and does not censor the observations in `$indpref`.
+For many researchers, it would be useful if an ID identifier was included in the input dataframe, so that one can directly join the output to the existing dataset for further analysis. For example, here in this case the data in `city200` was coded with the name of an individual and their educational attainment. By specifying `ID`, I can retain a column or many columns containing an inidviduals' characteristics, and extract their preferences by educational attainment.
+
+To add a bit of flavour to this example, I am going to use a package called `randomNames` that can be installed from CRAN by @Betebenner2017.
+
+```{r}
+library(randomNames)
+
+edl <- c("No High School", "High School", "Undergraduate", "Postgraduate")
+
+edunames <- tibble(edu = factor(rep(edl,50)),
+                  names = randomNames(200, which.names = "first"),
+                  catowner = c(rep(TRUE,100), rep(FALSE,100)))
+
+citynames <- cbind(edunames, city200)
+head(citynames)
+```
+
+Here we have created a fictitious sample of the population with their pairwise comparisons of which city to live in. We can specify which columns to keep. We can also specify how the pairwise comparisons were ordered directly to the AHP routine so that it saves you a step from extracting the columns you need in the order you want.
+
+```{r, error = TRUE}
+named <- ahp(df = citynames, 
+              atts = c('cult', 'fam', 'house', 'jobs', 'trans'), 
+              negconvert = TRUE, 
+              reciprocal = TRUE,
+              method = 'arithmetic', 
+              aggmethod = "arithmetic", 
+              qt = 0.2,
+             censorcr = 0.1,
+             agg = FALSE, 
+             ID = c("edu", "names")
+             )
+
+head(named)
+```
+
+Oops! There seems to be an irrelevant `catowner` column (that I've added) that you just want the routine to ignore. Fortunately, we could avoid this error by directly specifying the names and order of the columns that contain the pairwise comparisons using the `col` argument. The `col` argument also reorders your data.frame so that you don't have to do it manually if you want.
+
+```{r}
+columns <- c("cult_fam", "cult_house", "cult_jobs", "cult_trans",
+           "fam_house", "fam_jobs", "fam_trans",
+           "house_jobs", "house_trans",
+           "jobs_trans")
+
+named <- ahp(df = citynames, 
+             atts = c('cult', 'fam', 'house', 'jobs', 'trans'), 
+             negconvert = TRUE, 
+             reciprocal = TRUE,
+             method = 'arithmetic', 
+             aggmethod = "arithmetic",
+             qt = 0.2,
+             censorcr = 0.1,
+             agg = FALSE, 
+             ID = c("edu", "names"),
+             col = columns
+             )
+
+head(named)
+```
+
+That way, it would only be fitting to show you how to summarize the mean of the priority weights of `cult` across groups.
+
+```{r}
+named %>%
+  group_by(edu) %>%
+  dplyr::summarize(Mean = mean(cult, na.rm=TRUE))
+```
 
 \newpage
 
-# Appendix: data generation process
+# Appendix I: data generation process
 
 The dataset `city200` is generated based on Saaty's example of choosing a city to live in described in @Saaty2004. I recreated Saaty's example of criteria weights by simulating 200 decision-makers who make their choices based on the underlying true weights. The dataset is generated using a normal random sample from the Saaty scale with the mean set as the true weight and the standard deviation set manually. With a higher standard deviation, it is expected that the pairwise comparison will be less consistent. The methods employed later will reveal which pairwise comparison is less consistent than others.
 

@@ -1,3 +1,21 @@
+## ahpsurvey 0.4.0
+
+* Allows for an ID column/ columns for the `ahp` routine so that the output can preserve some column with an individual identifier(s).
+
+* Adds an `col` argument for `ahp` to specify the columns and its order of the pairwise comparison variables directly to `ahp`.
+
+## ahpsurvey 0.3.1
+
+* Added `ahp.ri`, which allows users to self-generate random indices used to calculate the consistency ratio.
+
+* Replaced default values of RI in `ahp.cr` with values generated in `ahp.ri` with 500000 simulations.
+
+## ahpsurvey 0.3.0
+
+* Added a new canned routine, `ahp`, which provides a detailed output using some of the best functions in `ahpsurvey`.
+
+* Edited wording in the documentation to make it a bit more consistent.
+
 ## ahpsurvey 0.2.2
 
 * Fixed a bug where `ahp.missing` throws an error when a mix of complete and incomplete pairwise matrices is passed through it.
